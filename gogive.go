@@ -49,7 +49,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	routes := <- s.Routes
 	
-	if src, root, ok := routes.findPath(r.RequestURI); !ok {
+	if src, root, ok := routes.findPath(r.URL.Path); !ok {
 		http.Error(w, "Not Found", 404)
 		return
 	} else {
@@ -66,11 +66,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (r Router) findPath(path string) (Source, string, bool) {
 	nodes := strings.Split(path, "/")
 	for len(nodes) > 0 {
+		path := strings.Join(nodes, "/")
 		if src, ok := r[path]; ok {
 			return src, path, true
 		}
-		last := nodes[len(nodes)-1]
-		path = path[:len(path) - (len(last) + 1)]
 		nodes = nodes[:len(nodes)-1]
 	}
 	return Source{}, "", false
