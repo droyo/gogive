@@ -1,0 +1,21 @@
+gogive is a tool that establishes an arbitrary mapping between
+a list of import paths and their source control repositories for use
+with the `go get` tool. This allows you to, for example, construct
+meaningful import paths under your own site name, such as
+
+	import "example.org/net/lldp"
+
+While still taking advantage of third-party code hosting sites like github,
+which offer a lot in terms of scalability and collabaration tools (issues, etc).
+
+To run `gogive`, create a configuration file with lines of the form
+
+	prefix vcs repo
+
+Where `prefix` is the import path prefix, `vcs` is the version control tool,
+and `repo` is the url of the actual source repository. Then run `gogive`:
+
+	$ gogive /path/to/gogive-config-file
+
+For use as a service, run it under a supervisor such as Upstart, daemontools,
+supervisord, or systemd.
