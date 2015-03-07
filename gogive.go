@@ -3,15 +3,15 @@ package main
 import (
 	"bufio"
 	"flag"
+	"fmt"
+	"html/template"
+	"io"
 	"log"
 	"net/http"
 	"os"
-	"io"
 	"os/signal"
-	"fmt"
 	"strings"
 	"syscall"
-	"html/template"
 )
 
 var (
@@ -19,7 +19,7 @@ var (
 )
 
 var pageTmpl = template.Must(template.New("HTML").Parse(
-`<html>
+	`<html>
 	<head>
 		<meta name="go-import" content="{{.Host}}{{.Path}} {{.Vcs}} {{.Url}}">
 	</head>
@@ -30,7 +30,7 @@ type Source struct {
 	Vcs, Url string
 }
 
-type Router map[string] Source
+type Router map[string]Source
 
 type Server struct {
 	config string
@@ -47,8 +47,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method Not Allowed", 405)
 		return
 	}
-	routes := <- s.Routes
-	
+	routes := <-s.Routes
+
 	if src, root, ok := routes.findPath(r.URL.Path); !ok {
 		http.Error(w, "Not Found", 404)
 		return
@@ -57,7 +57,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		match.Host = r.Host
 		match.Path = root
 	}
-	
+	if r.FormValue("go-get") != "1" {
+		// if this request is not coming from the go tool, redirect
+		// to godoc.org
+		http.Redirect(w, r, "http://godoc.org/"+r.Host+r.URL.Path, http.StatusSeeOther)
+		return
+	}
 	if err := pageTmpl.Execute(w, match); err != nil {
 		http.Error(w, "Internal Server Error", 500)
 	}
@@ -92,9 +97,9 @@ func main() {
 	}
 
 	s := NewServer(flag.Arg(0))
-	srv := &http.Server {
+	srv := &http.Server{
 		Handler: s,
-		Addr: *addr,
+		Addr:    *addr,
 	}
 	go srv.ListenAndServe()
 	log.Print("Listening on ", *addr)
@@ -104,7 +109,7 @@ func main() {
 }
 
 func NewServer(config string) *Server {
-	return &Server {
+	return &Server{
 		config: config,
 		Routes: make(chan Router),
 	}
@@ -117,7 +122,7 @@ func (srv *Server) Run() error {
 	}
 	sig := make(chan os.Signal)
 	signal.Notify(sig, syscall.SIGHUP, os.Interrupt, os.Kill)
-	
+
 	for {
 		select {
 		case srv.Routes <- r:
@@ -137,7 +142,7 @@ func (srv *Server) Run() error {
 func NewRouter(filename string) (Router, error) {
 	var n int
 	r := make(Router)
-	
+
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
