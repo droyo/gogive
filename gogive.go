@@ -148,8 +148,12 @@ func NewRouter(filename string) (Router, error) {
 			continue
 		}
 		fields := strings.Fields(scanner.Text())
+		if len(fields) == 0 {
+			continue
+		}
 		if len(fields) != 3 {
-			return nil, fmt.Errorf("%s:%d: (%d) fields (expected 3) in %q",
+			continue
+			log.Printf("%s:%d: (%d) fields (expected 3) in %q",
 				filename, n, len(fields), scanner.Text())
 		}
 		if _, ok := r[fields[0]]; ok {
