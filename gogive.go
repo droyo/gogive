@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"html/template"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -64,7 +63,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := pageTmpl.Execute(w, match); err != nil {
-		http.Error(w, "Internal Server Error", 500)
+		log.Print(err)
 	}
 }
 
@@ -80,16 +79,13 @@ func (r Router) findPath(path string) (Source, string, bool) {
 	return Source{}, "", false
 }
 
-func init() {
+func main() {
 	log.SetFlags(0)
 	log.SetPrefix("")
 	flag.Usage = func() {
 		log.Printf("Usage: %s [-a addr] config\n", os.Args[0])
 		os.Exit(2)
 	}
-}
-
-func main() {
 	flag.Parse()
 
 	if len(flag.Args()) != 1 {
@@ -103,7 +99,7 @@ func main() {
 	}
 	go srv.ListenAndServe()
 	log.Print("Listening on ", *addr)
-	if err := s.Run(); err != nil {
+	if err := s.loadConfig(); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -115,63 +111,51 @@ func NewServer(config string) *Server {
 	}
 }
 
-func (srv *Server) Run() error {
+// runs in its own goroutine.
+func (srv *Server) loadConfig() error {
 	r, err := NewRouter(srv.config)
 	if err != nil {
 		return err
 	}
 	sig := make(chan os.Signal)
-	signal.Notify(sig, syscall.SIGHUP, os.Interrupt, os.Kill)
+	signal.Notify(sig, syscall.SIGHUP)
 
 	for {
 		select {
 		case srv.Routes <- r:
-		case s := <-sig:
-			if s == os.Interrupt || s == os.Kill {
-				return fmt.Errorf("Interrupt")
-			}
-			nr, err := NewRouter(srv.config)
-			if err != nil {
+		case <-sig:
+			if nr, err := NewRouter(srv.config); err != nil {
 				log.Print(err)
+			} else {
+				r = nr
 			}
-			r = nr
 		}
 	}
 }
 
 func NewRouter(filename string) (Router, error) {
-	var n int
 	r := make(Router)
 
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
 	}
-	buf := bufio.NewReader(file)
-	for {
-		line, err := buf.ReadString('\n')
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
+	n := 0
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
 		n++
-		if len(line) < 2 {
+		if strings.HasPrefix(scanner.Text(), "#") {
 			continue
 		}
-		if line[0] == '#' {
-			continue
-		}
-		fields := strings.Fields(line)
+		fields := strings.Fields(scanner.Text())
 		if len(fields) != 3 {
-			return nil, fmt.Errorf("%s:%d: too many fields in `%s'", filename, n, line)
-			continue
+			return nil, fmt.Errorf("%s:%d: (%d) fields (expected 3) in %q",
+				filename, n, len(fields), scanner.Text())
 		}
 		if _, ok := r[fields[0]]; ok {
 			return nil, fmt.Errorf("%s:%d: duplicate entry %s", filename, n, fields[0])
 		}
 		r[fields[0]] = Source{fields[1], fields[2]}
 	}
-	return r, nil
+	return r, scanner.Err()
 }
