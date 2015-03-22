@@ -178,8 +178,6 @@ func NewRouter(filename string) (Router, error) {
 		}
 		if len(fields) != 3 {
 			continue
-			log.Printf("%s:%d: (%d) fields (expected 3) in %q",
-				filename, n, len(fields), scanner.Text())
 		}
 		if _, ok := r[fields[0]]; ok {
 			return nil, fmt.Errorf("%s:%d: duplicate entry %s", filename, n, fields[0])
