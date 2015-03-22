@@ -1,3 +1,28 @@
+/*
+gogive is a tool to serve vanity import paths for Go programs.
+
+Usage:
+
+	gogive [-a addr] file
+
+gogive will bind to the address specified by addr, or :9625 if
+none is specified, and serve HTTP requests issued by the go
+tool as described in https://golang.org/cmd/go/#hdr-Remote_import_paths
+
+File must be a utf-8 encoded plain text file containing path
+redirect specifications, one per line, of the form
+
+	/path vcs vcsrepo
+
+HTTP GET requests of the form /path?go-get=1 will receive an
+html page with the following meta tag:
+
+	<meta name="go-import" content="example.com/path vcs vcsrepo">
+
+Note that gogive will use the value of the Host: header in the HTTP request
+in the output HTML. HTTP requests that do not contain the "go-get"
+query parameter will be redirected to godoc.org.
+*/
 package main
 
 import (
